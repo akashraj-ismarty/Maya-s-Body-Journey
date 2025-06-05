@@ -1,4 +1,4 @@
-using UnityEngine;
+    using UnityEngine;
 using System.Collections;
 using TMPro; // Required if you're using TextMeshPro
 using UnityEngine.UI;
@@ -97,13 +97,14 @@ public class MenstruationExplanation : MonoBehaviour
         }
         audioSource.Stop();
         isPaused = false; // Reset pause state when changing segments
-        isExplanationComplete = false;
 
 
         currentSegmentIndex = segmentIndex;
 
         if (currentSegmentIndex >= 0 && currentSegmentIndex < explanationSegments.Length)
         {
+            isExplanationComplete = false; // We are on a valid, active segment
+            isTextTypingFinished = false;  // New text will start typing
 
             if (avatarAnimator != null) avatarAnimator.SetBool("IsTalking", true);
 
@@ -164,24 +165,37 @@ public class MenstruationExplanation : MonoBehaviour
 
     void UpdateNavigationButtons()
     {
-        if (previousButton != null) previousButton.interactable = currentSegmentIndex > 0 && !isPaused;
-        if (nextButton != null) nextButton.interactable = currentSegmentIndex < explanationSegments.Length && !isPaused; // Allow going to "Thank you"
+        // --- Previous Button ---
+        if (previousButton != null)
+        {
+            // Interactable if not paused, and not the first segment.
+            previousButton.interactable = currentSegmentIndex > 0 && !isPaused;
+        }
 
-        bool canPause = !isExplanationComplete && (audioSource.isPlaying || !isTextTypingFinished);
+        // --- Next Button ---
+        if (nextButton != null)
+        {
+            // Interactable if not paused, and not currently showing the "Thank you" message.
+            // (i.e., currentSegmentIndex is for an actual segment that has a "next")
+            nextButton.interactable = currentSegmentIndex < explanationSegments.Length && !isPaused;
+        }
+
+        // --- Pause/Resume Button ---
         if (pauseResumeButton != null)
         {
-            pauseResumeButton.interactable = canPause;
-            if (pauseResumeButtonText != null)
+            if (isPaused)
             {
-                if (canPause)
-                {
-                    pauseResumeButtonText.text = isPaused ? "Resume" : "Pause";
-                }
-                else
-                {
-                    // Reset to "Pause" or an empty string if not interactable and not paused
-                    pauseResumeButtonText.text = "Pause";
-                }
+                // If paused, button should allow resuming.
+                pauseResumeButton.interactable = true;
+                if (pauseResumeButtonText != null) pauseResumeButtonText.text = "Resume";
+            }
+            else // Not paused
+            {
+                // If not paused, button should allow pausing if content is actively playing.
+                bool canBePaused = !isExplanationComplete && (audioSource.isPlaying || !isTextTypingFinished);
+                pauseResumeButton.interactable = canBePaused;
+
+                if (pauseResumeButtonText != null) pauseResumeButtonText.text = "Pause";
             }
         }
         if (isPaused && nextButton != null) nextButton.interactable = false; // Disable next/prev when paused
@@ -192,6 +206,7 @@ public class MenstruationExplanation : MonoBehaviour
     // Coroutine to display the text character by character.
     IEnumerator TypeText(string text)
     {
+        isTextTypingFinished = false;
         foreach (char letter in text.ToCharArray())
         {
             while (isPaused)
@@ -211,9 +226,28 @@ public class MenstruationExplanation : MonoBehaviour
     }
     IEnumerator WaitForAudioAndFinalizeSegment()
     {
-        while (audioSource.isPlaying) yield return null; // Wait for audio to finish
-        if (avatarAnimator != null) avatarAnimator.SetBool("IsTalking", false); // Ensure talking stops
-        UpdateNavigationButtons(); // Update buttons once audio and text are done for the segment
+        // Wait until the text has finished typing AND the audio clip has finished playing.
+        while (!isTextTypingFinished || audioSource.isPlaying)
+        {
+            yield return null;
+        }
+
+        // Ensure avatar stops talking if it was set by TypeText due to no audio
+        if (avatarAnimator != null)
+        {
+            avatarAnimator.SetBool("IsTalking", false);
+        }
+        UpdateNavigationButtons();
+    }
+    
+        public void ExitApplication()
+    {
+        Debug.Log("ExitApplication requested. Quitting...");
+        #if UNITY_EDITOR
+                UnityEditor.EditorApplication.isPlaying = false;
+        #else
+                Application.Quit();
+        #endif
     }
 
 }
