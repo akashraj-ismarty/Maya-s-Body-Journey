@@ -140,7 +140,11 @@ PlayerSettings:
   visionOSBundleVersion: 1.0
   tvOSBundleVersion: 1.0
   bundleVersion: 3.2.0
-  preloadedAssets: []
+  preloadedAssets:
+  - {fileID: -5388254573550548959, guid: 72875bb9cae37ab4ea7de2a6a0fcaee4, type: 2}
+  - {fileID: 11400000, guid: ffdcbd180cf4b634bbf03998612b8018, type: 2}
+  - {fileID: 4800000, guid: c9f956787b1d945e7b36e0516201fc76, type: 3}
+  - {fileID: 4800000, guid: 0945859e5a1034c2cb6dce53cb4fb899, type: 3}
   metroInputSource: 0
   wsaTransparentSwapchain: 0
   m_HolographicPauseOnTrackingLoss: 1
@@ -946,7 +950,7 @@ PlayerSettings:
   cloudProjectId: bda92b3c-6bf7-421b-a095-68418773e680
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []
-  projectName: 
+  projectName: Maya's Body Journey
   organizationId: sradhamol
   cloudEnabled: 0
   legacyClampBlendShapeWeights: 0
