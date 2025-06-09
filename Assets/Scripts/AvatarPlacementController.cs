@@ -28,6 +28,7 @@ public class AvatarPlacementController : MonoBehaviour
     private GameObject placedAvatar;
     private GameObject placedUterus; // To keep track of the placed uterus
     private GameObject placementIndicator;
+    public GameObject placementPrompt;
 
     public Animator PlacedUterusAnimator { get; private set; }
 
@@ -93,6 +94,9 @@ public class AvatarPlacementController : MonoBehaviour
             SetPlaneTrackablesActive(true);
         }
         placementIndicator.SetActive(true);
+        placementPrompt.SetActive(true);
+
+
 
         if (uiSystemGameObject != null)
         {
@@ -118,6 +122,8 @@ public class AvatarPlacementController : MonoBehaviour
             arPlaneManager.enabled = false; //stop detecting new planes
         }
         placementIndicator.SetActive(false);
+        placementPrompt.SetActive(false);
+
 
         if (uiSystemGameObject != null)
         {
