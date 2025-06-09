@@ -2,17 +2,34 @@ using UnityEngine;
 using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
 using System.Collections.Generic;
+using System;
+
+public enum PlacementState
+{
+    ARPlaneDetection,
+    AvatarPlaced
+}
 
 public class AvatarPlacementController : MonoBehaviour
 {
     public GameObject avatarPrefab; // Assign your 3D avatar prefab here
     public GameObject uterusPrefab; // Assign your uterus prefab here
     public float offsetFromAvatar = 0.5f; // Adjust this value to control distance from avatar
-    public ARRaycastManager arRaycastManager;
 
+    public ARRaycastManager arRaycastManager;
+    public ARPlaneManager arPlaneManager;
+    public GameObject placementIndicatorPrefab;
+    public GameObject uiSystem;
+    public GameObject uiSystemGameObject;
+
+
+    private PlacementState currentState;// = new PlacementState();
     private List<ARRaycastHit> hits = new List<ARRaycastHit>();
     private GameObject placedAvatar;
     private GameObject placedUterus; // To keep track of the placed uterus
+    private GameObject placementIndicator;
+
+    public Animator PlacedUterusAnimator { get; private set; }
 
     void Start()
     {
@@ -24,99 +41,215 @@ public class AvatarPlacementController : MonoBehaviour
                 Debug.LogError("ARRaycastManager not found! Please add it to your AR Session.");
             }
         }
+        if (arPlaneManager == null)
+        {
+            arPlaneManager = FindObjectOfType<ARPlaneManager>();
+            if (arPlaneManager == null)
+            {
+                Debug.LogError("ARPlaneManager not found! Please add it to your AR Session.");
+            }
+        }
+        if (placementIndicatorPrefab == null)
+        {
+            Debug.LogError("PlacementIndicatorPrefab not found!");
+            enabled = false;
+            return;
+        }
+        placementIndicator = Instantiate(placementIndicatorPrefab);
+        placementIndicator.SetActive(false);
+
+        if (uiSystemGameObject == null)
+        {
+            Debug.LogError("UI System GameObject not found");
+
+        }
+        EnterARPlaneDetectionState();
+            
     }
+
 
     void Update()
     {
-        // Only proceed if there's a touch input for initial placement
-        if (Input.touchCount > 0)
+        switch (currentState)
         {
-            Touch touch = Input.GetTouch(0);
+            case PlacementState.ARPlaneDetection:
+                UpdateARPlaneDetection();
+                break;
+            case PlacementState.AvatarPlaced:
+                UpdateAvatarPlaced();
+                break;
+        }
+    }
 
-            if (touch.phase == TouchPhase.Ended)
-            {
-                if (arRaycastManager.Raycast(touch.position, hits, TrackableType.PlaneWithinPolygon))
-                {
-                    Pose hitPose = hits[0].pose;
 
-                    // Destroy previous objects if only one set is desired
-                    if (placedAvatar != null)
-                    {
-                        Destroy(placedAvatar);
-                    }
-                    if (placedUterus != null)
-                    {
-                        Destroy(placedUterus);
-                    }
+    private void EnterARPlaneDetectionState()
+    {
+        currentState = PlacementState.ARPlaneDetection;
+        Debug.Log("Entering ARPlaneDetection State");
+        arRaycastManager.enabled = true;
+        if (arPlaneManager != null)
+        {
+            arPlaneManager.enabled = true;
+            SetPlaneTrackablesActive(true);
+        }
+        placementIndicator.SetActive(true);
 
-                    // 1. Instantiate the Avatar
-                    placedAvatar = Instantiate(avatarPrefab, hitPose.position, Quaternion.identity);
-
-                    // 2. Calculate the position for the Uterus relative to the avatar
-                    // Get the camera's forward direction on the horizontal plane
-                    Vector3 cameraForward = Camera.main.transform.forward;
-                    cameraForward.y = 0; // Ignore vertical component
-                    cameraForward.Normalize();
-
-                    // Calculate the right vector relative to the camera's horizontal forward
-                    // This will place the uterus to the right of the avatar from the camera's perspective
-                    Vector3 rightDirection = Quaternion.Euler(0, 90, 0) * cameraForward;
-
-                    // Uterus position: avatar's position + (right direction * offset)
-                    Vector3 uterusPosition = placedAvatar.transform.position + (rightDirection * offsetFromAvatar);
-
-                    // 3. Instantiate the Uterus
-                    placedUterus = Instantiate(uterusPrefab, uterusPosition, Quaternion.identity);
-
-                    // 4. Trigger Uterus Animation
-                    Animator uterusAnimator = placedUterus.GetComponent<Animator>();
-                    if (uterusAnimator != null)
-                    {
-                        // Assuming you have an animation trigger named "PlayAnimation"
-                        // Change "PlayAnimation" to the actual name of your Animator Trigger parameter
-                        Debug.Log("Uterus animation triggered!");
-                    }
-                    else
-                    {
-                        Debug.LogWarning("Uterus Prefab does not have an Animator component.");
-                    }
-
-                    Debug.Log("Avatar and Uterus placed at: " + hitPose.position);
-                }
-            }
+        if (uiSystemGameObject != null)
+        {
+            uiSystemGameObject.SetActive(false);
+            uiSystem.SetActive(false);
         }
 
-        // --- Make the avatar always face the camera ---
-        if (placedAvatar != null && Camera.main != null)
+        DestroyPlacedObjects();
+
+    }
+
+  
+
+    void EnterAvatarPlacedState()
+    {
+        currentState = PlacementState.AvatarPlaced;
+        Debug.Log("Entering AvatarPlaced State");
+
+        arRaycastManager.enabled = false;
+        if (arPlaneManager != null)
+        {
+            SetPlaneTrackablesActive(false); // hide exiting planes
+            arPlaneManager.enabled = false; //stop detecting new planes
+        }
+        placementIndicator.SetActive(false);
+
+        if (uiSystemGameObject != null)
+        {
+            uiSystemGameObject.SetActive(true);
+            uiSystem.SetActive(true);
+        }
+    }
+
+    private void UpdateARPlaneDetection()
+    {
+        // Check if the user is looking at a plane
+        UpdatePlacementIndicatorVisuals();
+
+        if (placementIndicator.activeSelf && Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
+        {
+            Pose placementPose = new Pose(placementIndicator.transform.position, placementIndicator.transform.rotation);
+            PlaceObjects(placementPose);
+            EnterAvatarPlacedState();
+        }
+    }
+
+    private void UpdatePlacementIndicatorVisuals()
+    {
+        Vector2 screenCenter = new Vector2(Screen.width / 2f, Screen.height / 2f);
+        if (arRaycastManager.Raycast(screenCenter, hits, TrackableType.PlaneWithinPolygon))
+        {
+            placementIndicator.SetActive(true);
+            placementIndicator.transform.SetPositionAndRotation(hits[0].pose.position, hits[0].pose.rotation);
+        }
+        else
+        {
+            placementIndicator.SetActive(false);
+        }
+    }
+    private void PlaceObjects(Pose placementPose)
+    {
+        DestroyPlacedObjects(); // Destroy previous objects if any
+
+        // 1. Instantiate the Avatar
+        placedAvatar = Instantiate(avatarPrefab, placementPose.position, Quaternion.identity); // Use placement pose rotation or identity
+
+        // 2. Calculate the position for the Uterus relative to the avatar
+        Vector3 cameraForward = Camera.main.transform.forward;
+        cameraForward.y = 0; // Ignore vertical component
+        cameraForward.Normalize();
+        Vector3 rightDirection = Quaternion.Euler(0, 90, 0) * cameraForward;
+        Vector3 uterusPosition = placedAvatar.transform.position + (rightDirection * offsetFromAvatar);
+
+        // 3. Instantiate the Uterus
+        placedUterus = Instantiate(uterusPrefab, uterusPosition, Quaternion.identity);
+
+        // 4. Trigger Uterus Animation (Optional)
+        PlacedUterusAnimator = placedUterus.GetComponent<Animator>();
+        if (PlacedUterusAnimator != null)
+        {
+            // Assuming you have an animation trigger named "PlayAnimation"
+            // uterusAnimator.SetTrigger("PlayAnimation"); // Uncomment and set your trigger
+            Debug.Log("Uterus animation would be triggered here if set up.");
+        }
+        else
+        {
+            Debug.LogWarning("Uterus Prefab does not have an Animator component.");
+        }
+
+        Debug.Log("Avatar and Uterus placed at: " + placementPose.position);
+    }
+
+    private void UpdateAvatarPlaced()
+    {
+        // --- Make the avatar and uterus always face the camera ---
+        if (Camera.main != null)
         {
             Vector3 cameraPosition = Camera.main.transform.position;
-            Vector3 avatarPosition = placedAvatar.transform.position;
-
-            Vector3 lookDirection = cameraPosition - avatarPosition;
-            lookDirection.y = 0; // Crucial: Restrict rotation to the Y-axis
-
-            if (lookDirection != Vector3.zero)
+            if (placedAvatar != null)
             {
-                Quaternion targetRotation = Quaternion.LookRotation(lookDirection);
-                placedAvatar.transform.rotation = targetRotation;
-
-                // Make the uterus face the camera as well, or keep its initial rotation if desired
-                // For simplicity, let's also make it face the camera horizontally
-                if (placedUterus != null)
+                Vector3 avatarPosition = placedAvatar.transform.position;
+                Vector3 lookDirectionAvatar = cameraPosition - avatarPosition;
+                lookDirectionAvatar.y = 0;
+                if (lookDirectionAvatar != Vector3.zero)
                 {
-                    Vector3 uterusLookDirection = cameraPosition - placedUterus.transform.position;
-                    uterusLookDirection.y = 0;
-                    if (uterusLookDirection != Vector3.zero)
-                    {
-                        // Calculate the base rotation to make the GameObject's Z-axis face the camera
-                        Quaternion baseRotation = Quaternion.LookRotation(uterusLookDirection);
+                    placedAvatar.transform.rotation = Quaternion.LookRotation(lookDirectionAvatar);
+                }
+            }
 
-                        // Apply a corrective rotation. If the model's "front" is its local +X axis,
-                        // a +90 degree rotation around Y will align it.
-                        Quaternion correctiveRotation = Quaternion.Euler(0, -120f, 0);
-                        placedUterus.transform.rotation = baseRotation * correctiveRotation;                    }
+            if (placedUterus != null)
+            {
+                Vector3 uterusPosition = placedUterus.transform.position;
+                Vector3 lookDirectionUterus = cameraPosition - uterusPosition;
+                lookDirectionUterus.y = 0;
+                if (lookDirectionUterus != Vector3.zero)
+                {
+                    Quaternion baseRotation = Quaternion.LookRotation(lookDirectionUterus);
+                    Quaternion correctiveRotation = Quaternion.Euler(0, -120f, 0); // Keep your corrective rotation
+                    placedUterus.transform.rotation = baseRotation * correctiveRotation;
                 }
             }
         }
+    }
+    private void DestroyPlacedObjects()
+    {
+        if (placedAvatar != null)
+        {
+            Destroy(placedAvatar);
+            placedAvatar = null;
+        }
+        if (placedUterus != null)
+        {
+            Destroy(placedUterus);
+            placedUterus = null;
+        }
+        PlacedUterusAnimator = null;
+    }
+
+    private void SetPlaneTrackablesActive(bool isActive)
+    {
+        if (arPlaneManager != null)
+        {
+            foreach (var plane in arPlaneManager.trackables)
+            {
+                plane.gameObject.SetActive(isActive);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Public method to reset the AR experience.
+    /// Call this from a UI button or other game logic.
+    /// </summary>
+    public void ResetExperience()
+    {
+        Debug.Log("Resetting Experience");
+        DestroyPlacedObjects();
+        EnterARPlaneDetectionState();
     }
 }

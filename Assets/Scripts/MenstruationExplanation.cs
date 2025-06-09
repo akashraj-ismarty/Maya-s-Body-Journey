@@ -5,6 +5,7 @@ using UnityEngine.UI;
 
 public class MenstruationExplanation : MonoBehaviour
 {
+    
     [Header("Avatar and Text")]
     public Animator avatarAnimator;        // Drag your avatar's Animator component here in the Inspector
     public TextMeshProUGUI dialogueText;  // Drag your TextMeshPro Text object here
@@ -29,10 +30,28 @@ public class MenstruationExplanation : MonoBehaviour
     public Button nextButton;
     public TextMeshProUGUI pauseResumeButtonText; // Optional: To change button text to "Pause"/"Resume"
 
+    public Image pauseResumeButtonImage; // Assign the Image component of the PauseResumeButton
+    public Sprite pauseSprite; // Assign your pause icon sprite in the Inspector
+    public Sprite resumeSprite; // Assign your resume icon sprite in the Inspector
 
     // Flag to indicate the entire explanation sequence is complete (showing "Thank you")
     private bool isExplanationComplete = false;
+    private AvatarPlacementController avatarPlacementController;
 
+
+    void OnEnable()
+    {
+        // Attempt to find the AvatarPlacementController when this script becomes active.
+        // This is more reliable if MenstruationExplanation is activated after AvatarPlacementController is set up.
+        if (avatarPlacementController == null) // Only find if not already found
+        {
+            avatarPlacementController = FindObjectOfType<AvatarPlacementController>();
+            if (avatarPlacementController == null)
+            {
+                Debug.LogWarning("MenstruationExplanation: AvatarPlacementController not found in the scene on OnEnable. Uterus animation pausing/resuming might not work.");
+            }
+        }
+    }
 
     void Start()
     {
@@ -147,20 +166,51 @@ public class MenstruationExplanation : MonoBehaviour
     {
         if (isExplanationComplete) return; // Don't allow pause if explanation is fully done
 
+        // Ensure we have the controller reference if it wasn't found in OnEnable
+        if (avatarPlacementController == null)
+        {
+            avatarPlacementController = FindObjectOfType<AvatarPlacementController>();
+            if (avatarPlacementController == null)
+            {
+                Debug.LogError("MenstruationExplanation: AvatarPlacementController could not be found. Cannot control uterus animation.");
+            }
+        }
+
+        Animator uterusAnim = null;
+        if (avatarPlacementController != null)
+        {
+            uterusAnim = avatarPlacementController.PlacedUterusAnimator;
+        }
+
         isPaused = !isPaused;
         if (isPaused)
         {
             audioSource.Pause();
             if (avatarAnimator != null) avatarAnimator.enabled = false; // Pause animation
-            // TypeText coroutine will self-pause
+             
+            if (uterusAnim != null)
+            {
+                uterusAnim.speed = 0f; // Pause uterus animation
+            }
+            else
+            {
+                Debug.LogWarning("MenstruationExplanation: Uterus Animator not available to pause (AvatarPlacementController or its PlacedUterusAnimator might be null).");
+            }
         }
         else
         {
             audioSource.UnPause();
             if (avatarAnimator != null) avatarAnimator.enabled = true; // Resume animation
-            // TypeText coroutine will self-resume
+            if (uterusAnim != null)
+            {
+                uterusAnim.speed = 1f; // Resume uterus animation
+            }
+            else
+            {
+                Debug.LogWarning("MenstruationExplanation: Uterus Animator not available to resume (AvatarPlacementController or its PlacedUterusAnimator might be null).");
+            }
         }
-        UpdateNavigationButtons();
+        UpdateNavigationButtons(); // Update UI buttons based on the new state
     }
 
     void UpdateNavigationButtons()
@@ -188,6 +238,10 @@ public class MenstruationExplanation : MonoBehaviour
                 // If paused, button should allow resuming.
                 pauseResumeButton.interactable = true;
                 if (pauseResumeButtonText != null) pauseResumeButtonText.text = "Resume";
+                if (pauseResumeButtonImage != null && resumeSprite != null)
+                {
+                    pauseResumeButtonImage.sprite = resumeSprite;
+                }
             }
             else // Not paused
             {
@@ -196,6 +250,10 @@ public class MenstruationExplanation : MonoBehaviour
                 pauseResumeButton.interactable = canBePaused;
 
                 if (pauseResumeButtonText != null) pauseResumeButtonText.text = "Pause";
+                if (pauseResumeButtonImage != null && pauseSprite != null)
+                {
+                    pauseResumeButtonImage.sprite = pauseSprite;
+                }
             }
         }
         if (isPaused && nextButton != null) nextButton.interactable = false; // Disable next/prev when paused
