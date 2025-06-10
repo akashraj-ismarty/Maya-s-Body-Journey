@@ -590,7 +590,7 @@ GameObject:
   - component: {fileID: 2243018789595049212}
   - component: {fileID: 7079971406027968149}
   m_Layer: 0
-  m_Name: Casual1
+  m_Name: mayaAvatarPrefab
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

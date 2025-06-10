@@ -12,11 +12,13 @@ public class InteractiveAnatomyUI : MonoBehaviour
     [Tooltip("Prefab for the UI panel that displays information.")]
     public GameObject uiInfoPanelPrefab;
 
+
     [Header("Line Renderer Settings")]
     [Tooltip("Material for the line renderer.")]
     public Material lineMaterial;
     public float lineWidth = 0.005f;
     public Color lineColor = Color.yellow;
+    
 
     [Header("UI Panel Settings")]
     [Tooltip("Offset of the UI panel from the anchor point, relative to the camera's up direction.")]

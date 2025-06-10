@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 3510094136430648188}
   - component: {fileID: 1557290076762360111}
   m_Layer: 0
-  m_Name: Cylinder
+  m_Name: placementIndicatorPrefab
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

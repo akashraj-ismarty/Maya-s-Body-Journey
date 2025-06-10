@@ -2,7 +2,6 @@ using UnityEngine;
 using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
 using System.Collections.Generic;
-using System;
 
 public enum PlacementState
 {
@@ -12,27 +11,40 @@ public enum PlacementState
 
 public class AvatarPlacementController : MonoBehaviour
 {
+    #region Public Fields & properities
+    [Header("Object Prefabs")]
     public GameObject avatarPrefab; // Assign your 3D avatar prefab here
     public GameObject uterusPrefab; // Assign your uterus prefab here
+    public GameObject placementIndicatorPrefab;
+
+    [Header("Placement Settings")]
     public float offsetFromAvatar = 0.5f; // Adjust this value to control distance from avatar
 
+    [Header("AR Components")]
     public ARRaycastManager arRaycastManager;
     public ARPlaneManager arPlaneManager;
-    public GameObject placementIndicatorPrefab;
+
+    [Header("UI Systems")]
     public GameObject uiSystem;
     public InteractiveAnatomyUI interactiveAnatomySystem;
-    public GameObject uiSystemGameObject;
+    public GameObject menstruationController;
+    [SerializeField] private GameObject _placementPrompt;
 
-
-    private PlacementState currentState;// = new PlacementState();
-    private List<ARRaycastHit> hits = new List<ARRaycastHit>();
-    private GameObject placedAvatar;
-    private GameObject placedUterus; // To keep track of the placed uterus
-    private GameObject placementIndicator;
-    public GameObject placementPrompt;
-
+    /// <summary>
+    /// Animator component for the placed uterus.
+    /// </summary>
     public Animator PlacedUterusAnimator { get; private set; }
+    #endregion
 
+    #region Private Fields
+    private PlacementState _currentState;// = new PlacementState();
+    private readonly List<ARRaycastHit> _hits = new List<ARRaycastHit>();
+    private GameObject _placedAvatar;
+    private GameObject _placedUterus; // To keep track of the placed uterus
+    private GameObject _placementIndicatorInstance;
+    #endregion
+
+    #region Unity Lifecycle Methods
     void Start()
     {
         if (arRaycastManager == null)
@@ -57,10 +69,10 @@ public class AvatarPlacementController : MonoBehaviour
             enabled = false;
             return;
         }
-        placementIndicator = Instantiate(placementIndicatorPrefab);
-        placementIndicator.SetActive(false);
+        _placementIndicatorInstance = Instantiate(placementIndicatorPrefab);
+        _placementIndicatorInstance.SetActive(false);
 
-        if (uiSystemGameObject == null)
+        if (menstruationController == null)
         {
             Debug.LogError("UI System GameObject not found");
 
@@ -81,7 +93,7 @@ public class AvatarPlacementController : MonoBehaviour
 
     void Update()
     {
-        switch (currentState)
+        switch (_currentState)
         {
             case PlacementState.ARPlaneDetection:
                 UpdateARPlaneDetection();
@@ -91,11 +103,12 @@ public class AvatarPlacementController : MonoBehaviour
                 break;
         }
     }
+    #endregion
 
-
+    #region State Management
     private void EnterARPlaneDetectionState()
     {
-        currentState = PlacementState.ARPlaneDetection;
+        _currentState = PlacementState.ARPlaneDetection;
         Debug.Log("Entering ARPlaneDetection State");
         arRaycastManager.enabled = true;
         if (arPlaneManager != null)
@@ -103,31 +116,28 @@ public class AvatarPlacementController : MonoBehaviour
             arPlaneManager.enabled = true;
             SetPlaneTrackablesActive(true);
         }
-        placementIndicator.SetActive(true);
-        placementPrompt.SetActive(true);
+        _placementIndicatorInstance.SetActive(true);
+        _placementPrompt.SetActive(true);
 
 
 
-        if (uiSystemGameObject != null)
+        if (menstruationController != null)
         {
-            uiSystemGameObject.SetActive(false);
+            menstruationController.SetActive(false);
             uiSystem.SetActive(false);
         }
-        
+
         if (interactiveAnatomySystem != null)
         {
             interactiveAnatomySystem.DeactivateSystem();
         }
 
         DestroyPlacedObjects();
-
     }
-
-
 
     void EnterAvatarPlacedState()
     {
-        currentState = PlacementState.AvatarPlaced;
+        _currentState = PlacementState.AvatarPlaced;
         Debug.Log("Entering AvatarPlaced State");
 
         arRaycastManager.enabled = false;
@@ -136,30 +146,31 @@ public class AvatarPlacementController : MonoBehaviour
             SetPlaneTrackablesActive(false); // hide exiting planes
             arPlaneManager.enabled = false; //stop detecting new planes
         }
-        placementIndicator.SetActive(false);
-        placementPrompt.SetActive(false);
+        _placementIndicatorInstance.SetActive(false);
+        _placementPrompt.SetActive(false);
 
 
-        if (uiSystemGameObject != null)
+        if (menstruationController != null)
         {
-            uiSystemGameObject.SetActive(true);
+            menstruationController.SetActive(true);
             uiSystem.SetActive(true);
         }
-        
-        if (interactiveAnatomySystem != null && placedUterus != null)
+
+        if (interactiveAnatomySystem != null && _placedUterus != null)
         {
-            interactiveAnatomySystem.ActivateSystem(placedUterus.transform);
+            interactiveAnatomySystem.ActivateSystem(_placedUterus.transform);
         }
     }
+    #endregion
 
+    #region Core Logic
     private void UpdateARPlaneDetection()
     {
-        // Check if the user is looking at a plane
         UpdatePlacementIndicatorVisuals();
 
-        if (placementIndicator.activeSelf && Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
+        if (_placementIndicatorInstance.activeSelf && Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
         {
-            Pose placementPose = new Pose(placementIndicator.transform.position, placementIndicator.transform.rotation);
+            Pose placementPose = new Pose(_placementIndicatorInstance.transform.position, _placementIndicatorInstance.transform.rotation);
             PlaceObjects(placementPose);
             EnterAvatarPlacedState();
         }
@@ -168,14 +179,14 @@ public class AvatarPlacementController : MonoBehaviour
     private void UpdatePlacementIndicatorVisuals()
     {
         Vector2 screenCenter = new Vector2(Screen.width / 2f, Screen.height / 2f);
-        if (arRaycastManager.Raycast(screenCenter, hits, TrackableType.PlaneWithinPolygon))
+        if (arRaycastManager.Raycast(screenCenter, _hits, TrackableType.PlaneWithinPolygon))
         {
-            placementIndicator.SetActive(true);
-            placementIndicator.transform.SetPositionAndRotation(hits[0].pose.position, hits[0].pose.rotation);
+            _placementIndicatorInstance.SetActive(true);
+            _placementIndicatorInstance.transform.SetPositionAndRotation(_hits[0].pose.position, _hits[0].pose.rotation);
         }
         else
         {
-            placementIndicator.SetActive(false);
+            _placementIndicatorInstance.SetActive(false);
         }
     }
     private void PlaceObjects(Pose placementPose)
@@ -183,20 +194,20 @@ public class AvatarPlacementController : MonoBehaviour
         DestroyPlacedObjects(); // Destroy previous objects if any
 
         // 1. Instantiate the Avatar
-        placedAvatar = Instantiate(avatarPrefab, placementPose.position, Quaternion.identity); // Use placement pose rotation or identity
+        _placedAvatar = Instantiate(avatarPrefab, placementPose.position, Quaternion.identity); // Use placement pose rotation or identity
 
         // 2. Calculate the position for the Uterus relative to the avatar
         Vector3 cameraForward = Camera.main.transform.forward;
         cameraForward.y = 0; // Ignore vertical component
         cameraForward.Normalize();
         Vector3 rightDirection = Quaternion.Euler(0, 90, 0) * cameraForward;
-        Vector3 uterusPosition = placedAvatar.transform.position + (rightDirection * offsetFromAvatar);
+        Vector3 uterusPosition = _placedAvatar.transform.position + (rightDirection * offsetFromAvatar);
 
         // 3. Instantiate the Uterus
-        placedUterus = Instantiate(uterusPrefab, uterusPosition, Quaternion.identity);
+        _placedUterus = Instantiate(uterusPrefab, uterusPosition, Quaternion.identity);
 
         // 4. Trigger Uterus Animation (Optional)
-        PlacedUterusAnimator = placedUterus.GetComponent<Animator>();
+        PlacedUterusAnimator = _placedUterus.GetComponent<Animator>();
         if (PlacedUterusAnimator != null)
         {
             // Assuming you have an animation trigger named "PlayAnimation"
@@ -217,42 +228,45 @@ public class AvatarPlacementController : MonoBehaviour
         if (Camera.main != null)
         {
             Vector3 cameraPosition = Camera.main.transform.position;
-            if (placedAvatar != null)
+            if (_placedAvatar != null)
             {
-                Vector3 avatarPosition = placedAvatar.transform.position;
+                Vector3 avatarPosition = _placedAvatar.transform.position;
                 Vector3 lookDirectionAvatar = cameraPosition - avatarPosition;
                 lookDirectionAvatar.y = 0;
                 if (lookDirectionAvatar != Vector3.zero)
                 {
-                    placedAvatar.transform.rotation = Quaternion.LookRotation(lookDirectionAvatar);
+                    _placedAvatar.transform.rotation = Quaternion.LookRotation(lookDirectionAvatar);
                 }
             }
 
-            if (placedUterus != null)
+            if (_placedUterus != null)
             {
-                Vector3 uterusPosition = placedUterus.transform.position;
+                Vector3 uterusPosition = _placedUterus.transform.position;
                 Vector3 lookDirectionUterus = cameraPosition - uterusPosition;
                 lookDirectionUterus.y = 0;
                 if (lookDirectionUterus != Vector3.zero)
                 {
                     Quaternion baseRotation = Quaternion.LookRotation(lookDirectionUterus);
                     Quaternion correctiveRotation = Quaternion.Euler(0, -120f, 0); // Keep your corrective rotation
-                    placedUterus.transform.rotation = baseRotation * correctiveRotation;
+                    _placedUterus.transform.rotation = baseRotation * correctiveRotation;
                 }
             }
         }
     }
+    #endregion
+
+    #region Helper Methods
     private void DestroyPlacedObjects()
     {
-        if (placedAvatar != null)
+        if (_placedAvatar != null)
         {
-            Destroy(placedAvatar);
-            placedAvatar = null;
+            Destroy(_placedAvatar);
+            _placedAvatar = null;
         }
-        if (placedUterus != null)
+        if (_placedUterus != null)
         {
-            Destroy(placedUterus);
-            placedUterus = null;
+            Destroy(_placedUterus);
+            _placedUterus = null;
         }
         PlacedUterusAnimator = null;
     }
@@ -267,6 +281,7 @@ public class AvatarPlacementController : MonoBehaviour
             }
         }
     }
+    #endregion
 
     /// <summary>
     /// Public method to reset the AR experience.
