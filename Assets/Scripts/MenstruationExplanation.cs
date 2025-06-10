@@ -51,7 +51,10 @@ public class MenstruationExplanation : MonoBehaviour
                 Debug.LogWarning("MenstruationExplanation: AvatarPlacementController not found in the scene on OnEnable. Uterus animation pausing/resuming might not work.");
             }
         }
-    
+    }
+
+    void Start()
+    {   
         // Get the AudioSource component.  Add one if it doesn't exist.
         audioSource = GetComponent<AudioSource>();
         if (audioSource == null)

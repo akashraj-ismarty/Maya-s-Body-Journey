@@ -20,6 +20,7 @@ public class AvatarPlacementController : MonoBehaviour
     public ARPlaneManager arPlaneManager;
     public GameObject placementIndicatorPrefab;
     public GameObject uiSystem;
+    public InteractiveAnatomyUI interactiveAnatomySystem;
     public GameObject uiSystemGameObject;
 
 
@@ -64,6 +65,15 @@ public class AvatarPlacementController : MonoBehaviour
             Debug.LogError("UI System GameObject not found");
 
         }
+
+        if (interactiveAnatomySystem == null)
+        {
+            interactiveAnatomySystem = FindObjectOfType<InteractiveAnatomyUI>();
+            if (interactiveAnatomySystem == null)
+            {
+                Debug.LogWarning("InteractiveAnatomySystem not found. Interactive highlighting will not work.");
+            }
+        }
         EnterARPlaneDetectionState();
             
     }
@@ -103,12 +113,17 @@ public class AvatarPlacementController : MonoBehaviour
             uiSystemGameObject.SetActive(false);
             uiSystem.SetActive(false);
         }
+        
+        if (interactiveAnatomySystem != null)
+        {
+            interactiveAnatomySystem.DeactivateSystem();
+        }
 
         DestroyPlacedObjects();
 
     }
 
-  
+
 
     void EnterAvatarPlacedState()
     {
@@ -129,6 +144,11 @@ public class AvatarPlacementController : MonoBehaviour
         {
             uiSystemGameObject.SetActive(true);
             uiSystem.SetActive(true);
+        }
+        
+        if (interactiveAnatomySystem != null && placedUterus != null)
+        {
+            interactiveAnatomySystem.ActivateSystem(placedUterus.transform);
         }
     }
 
